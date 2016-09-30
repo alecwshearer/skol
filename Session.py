@@ -14,6 +14,23 @@ class TransType(Enum):
     SELL_YES = 2
     SELL_NO = 3
 
+class ExecutionReport(object):
+
+    def __init__(self):
+        # self.symbol = 'empty'
+        # self.marketType = 'empty'
+        # self.startDate = 'empty'
+        # self.endDate = 'empty'
+        # self.sharesTraded = 'empty'
+        # self.todaysVolume = 'empty'
+        # self.totalShares = 'empty'
+        self.tradedShares = 'empty'
+        self.tradedPrice = 'empty'
+        self.pnl = 'empty'
+        self.riskAdjustment = 'empty'
+        self.credit = 'empty'
+        self.question = 'empty'
+
 class Session(object):
 
     def __init__(self):
@@ -23,61 +40,93 @@ class Session(object):
     def logon(self):
         self.driver.get('https://www.predictit.org/Profile/MyShares')
         self.driver.find_element_by_link_text('Sign In').click()
-        self.driver.implicitly_wait(1)
+        time.sleep(1)
         self.driver.find_element_by_id('Email').send_keys('skoltrading@gmail.com')
+        time.sleep(1)
         pwElem = self.driver.find_element_by_id('Password')
+        time.sleep(1)
         pwElem.send_keys('')
+        time.sleep(1)
         pwElem.submit()
+        time.sleep(1)
         self.loggedIn = True
 
     def logout(self):
         self.driver.get('https://www.predictit.org/Profile/MyShares')
         self.loggedIn = False
 
-    def executeSingleTrade(self, transType, contractId, amount=1, marketId=-1):
+    def executeSingleTrade(self, transType, contractId, amount=1, marketId='empty'):
         # go to correct web page
         self.driver.get('https://www.predictit.org/Home/SingleOption?contractId=' + str(contractId))
+
         # click buy/sell button
         buttonName = ''
         previewName = ''
+
         if transType == TransType.BUY_YES:
             buttonName = 'simpleYes'
-            previewName = 'submitBuy'
+            previewName = 'submitBuy'     
         elif transType == TransType.BUY_NO:
             buttonName = 'simpleNo'
             previewName = 'submitBuy'
         elif transType == TransType.SELL_YES:
-            buttonName = 'simpleNo'
+            buttonName = 'sellYes-' + str(contractId)
             previewName = 'submitSell'
         elif transType == TransType.SELL_NO:
-            buttonName = 'simpleYes'
+            buttonName = 'sellNo-' + str(contractId)
             previewName = 'submitSell'
-        print(buttonName)
+
+        time.sleep(1)
         self.driver.find_element_by_id(buttonName).click()
-        self.driver.implicitly_wait(1)
+
         # fill in quantity
         if (amount != 1):
             self.driver.find_element_by_id('Quantity').send_keys(str(amount))
+            time.sleep(1)
+
         # execute trade
-        self.driver.find_element_by_id(previewName).click() # preview
-        # self.driver.implicitly_wait(1)
+        time.sleep(1)
+        self.driver.find_element_by_id(previewName).click()
+
+        time.sleep(1)
         self.driver.find_element(By.XPATH, '//button[text()="Submit Offer"]').click()  # WHEN TESTING EXECUTION COMMENT OUT THIS LINE SO YOU DON'T ACCIDENTALLY COMPLETE THE TRADE
-        # self.driver.implicitly_wait(1)
+
+        time.sleep(1)
+        return self.buildExecutionReport(transType, contractId, marketId)
+
+    def buildExecutionReport(self, transType, contractId, marketId):
+        report = ExecutionReport()
+        report.transType = transType
+        report.contractId = contractId
+        report.marketId = marketId
+        tds = self.driver.find_elements(By.TAG_NAME, "td")
+
+        # don' think we need this info, but these are their indices if we do.
+        # report.symbol = tds[7]
+        # report.marketType = tds[9]
+        # report.startDate = tds[11]
+        # report.endDate = tds[13]
+        # report.sharesTraded = tds[15]
+        # report.todaysVolume = tds[17]
+        # report.totalShares = tds[19]
+        report.tradedShares = tds[132]
+        report.tradedPrice = tds[133]
+        report.pnl = tds[135]
+        report.riskAdjustment = tds[137]
+        report.credit = tds[139]
+        report.question = self.driver.find_element_by_class_name('confirm-question').text
+        return report
 
     def begin(self):
-    # Mikey: double check that the contractId (869) still exists before testing this
-        try:
-            self.logon()
-            time.sleep(5)
-            self.executeSingleTrade(TransType.BUY_NO, 558)
-        except TimeoutException:
-            print('Timeout Error')
-        except NoSuchElementException:
-            print('NoSuchElement Error')
+        self.logon()
 
 def main():
     session = Session()
-    session.begin()
+    try:
+        session.begin()
+        report = session.executeSingleTrade(TransType.SELL_YES, 558)
+        print report.__dict__  # print execution report
+    except Exception,e: print str(e)
 
 if __name__ == "__main__":
     main()
